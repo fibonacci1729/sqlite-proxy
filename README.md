@@ -1,44 +1,59 @@
 # sqlite-proxy
 
-## Prerequisites
-- Install [cargo component v0.4.0](https://github.com/bytecodealliance/cargo-component):
+This repo is an example of how to compose a proxy component to intercept sqlite executions in the Spin World.
+
+## Repo structure
+
+The `sqlite-proxy/` directory contains a proxy to intercept executions against a sqlite database.
+
+The `example/` directory contains a Spin application which consists of one http handler which returns data from a sqlite database in the body. In the `spin.toml` file, the component build instructions point to a `build.sh` script which builds the example component and composes it with the sqlite-middleware component.
+
+## Demo instructions
+
+### Pre-requisites
+
+- Install [cargo component](https://github.com/bytecodealliance/cargo-component):
 
 ```bash
-cargo install --git https://github.com/bytecodealliance/cargo-component --tag v0.4.0 cargo-component --locked
+cargo install --git https://github.com/bytecodealliance/cargo-component cargo-component
 ```
 
-- Install [wasm-tools](https://github.com/bytecodealliance/wasm-tools): 
+- Install latest [Spin](https://github.com/fermyon/spin)
+
+### Build the components and run the demo
 
 ```bash
-cargo install --git https://github.com/bytecodealliance/wasm-tools wasm-tools --locked
+
+# Build the Spin application and sqlite-proxy. Spin build runs the `example/build.sh` script.
+spin build
+
+# Build and run the example
+spin up --sqlite @db.sql
+
+# Curl http://127.0.0.1:3000/login in a browser
+curl -i http://localhost:3000
 ```
 
-> NOTE: I had to install `wasm-tools` from `fe363f0` because of some undiagnosed bug introduced in a later commit around import name validation.
+Try changing the Spin app to run without the sqlite-proxy, by changing the wasm file used in the `spin.toml` file:
 
-## Build, Compose, Up, Profit
+1. Uncomment `source = "target/wasm32-wasi/release/example.wasm"`
+2. Comment out `#source = "service.wasm"`
 
-Build the sqlite-proxy component:
-```
-cargo component build --release
-```
-
-Build, compose, and up the example:
-```
-spin up --build -f examples/todo --sqlite "@examples/todo/migration.sql"
+```toml
+[component.example]
+#source = "service.wasm"
+source = "target/wasm32-wasi/release/example.wasm"
 ```
 
-Add and delete a todo and in the terminal you should see the `sqlite` requests being "proxied" through the wrapper component:
-```
-Serving http://127.0.0.1:3000
+Now deploy your application.
+
+```sh
+$ spin deploy
+Uploading example version 0.1.0 to Fermyon Cloud...
+Deploying...
+Waiting for application to become ready............. ready
 Available Routes:
-  todo: http://127.0.0.1:3000/api (wildcard)
-  fs: http://127.0.0.1:3000 (wildcard)
-IN WRAPPER
-IN EXECUTE
-IN WRAPPER
-IN EXECUTE
-IN WRAPPER
-IN EXECUTE
-IN WRAPPER
-IN EXECUTE
+  example: https://example-12345.fermyon.app (wildcard)
 ```
+
+In the example deploy output above, the app now exists at endpoint `https://example-12345.fermyon.app`.

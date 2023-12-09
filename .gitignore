@@ -1,5 +1,4 @@
-examples/todo/todo.wasm
-examples/todo/target
-examples/todo/.spin
-/target/
-/Cargo.lock
+example/service.wasm
+example/target/
+target/
+.spin/

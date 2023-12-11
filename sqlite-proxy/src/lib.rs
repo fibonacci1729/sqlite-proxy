@@ -1,33 +1,75 @@
 use exports::fermyon::spin::sqlite::{
-    Error,
-    Value,
-    RowResult,
-    QueryResult,
-    OwnConnection, 
-    GuestConnection
+    Error, GuestConnection, OwnConnection, QueryResult, RowResult, Value,
 };
+use regex::Regex;
 
 pub struct ProxyConnection(spin_sdk::sqlite::Connection);
 
 impl GuestConnection for ProxyConnection {
     fn open(database: String) -> Result<OwnConnection, Error> {
-        println!("IN WRAPPER");
         let conn = spin_sdk::sqlite::Connection::open(&database).map(ProxyConnection)?;
         Ok(spin_sdk::wit_bindgen::rt::Resource::new(conn))
     }
 
     fn execute(&self, statement: String, parameters: Vec<Value>) -> Result<QueryResult, Error> {
-        println!("IN EXECUTE");
+        let parameters = parameters.into_iter().map(Into::into).collect::<Vec<_>>();
 
-        let parameters = parameters
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
+        // Grab the QueryResult
+        let mut query_result: QueryResult =
+            self.0.execute(&statement, &parameters).map(From::from)?;
 
-        Ok(self
-            .0
-            .execute(&statement, &parameters)
-            .map(From::from)?)
+        // Check all rows for a Text column. If it matches the e-mail patter, then obfuscate
+        for row_result in query_result.rows.iter_mut() {
+            for value in row_result.values.iter_mut() {
+                match value {
+                    Value::Text(v) => {
+                        if is_email(v) {
+                            *v = hide_email_domain(v);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Return the QueryResult
+        Ok(query_result)
+    }
+}
+
+fn is_email(email: &str) -> bool {
+    // Define a regular expression for a simple email validation
+    let email_regex = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+
+    // Check if the email matches the regular expression
+    email_regex.is_match(email)
+}
+
+fn hide_email_domain(email: &str) -> String {
+    // Define a regular expression to extract the domain and TLD
+    let email_regex = Regex::new(r"^(?P<local>[^@]+)@(?P<domain>[^\.]+)\.(?P<tld>.+)$").unwrap();
+
+    // Use the regular expression to capture parts of the email
+    if let Some(captures) = email_regex.captures(email) {
+        // Replace the domain with stars
+        let hidden_domain = captures
+            .name("domain")
+            .map_or("", |m| m.as_str())
+            .chars()
+            .map(|_| '*')
+            .collect::<String>();
+        // Retrieve the TLD
+        let tld = captures.name("tld").map_or("", |m| m.as_str());
+        // Recreate the modified email address
+        format!(
+            "{}@{}.{}",
+            captures.name("local").unwrap().as_str(),
+            hidden_domain,
+            tld
+        )
+    } else {
+        // If the email doesn't match the expected format, return it unchanged
+        email.to_string()
     }
 }
 
@@ -35,11 +77,7 @@ impl From<spin_sdk::sqlite::QueryResult> for QueryResult {
     fn from(qr: spin_sdk::sqlite::QueryResult) -> Self {
         QueryResult {
             columns: qr.columns,
-            rows: qr
-                .rows
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            rows: qr.rows.into_iter().map(From::from).collect(),
         }
     }
 }
@@ -47,11 +85,7 @@ impl From<spin_sdk::sqlite::QueryResult> for QueryResult {
 impl From<spin_sdk::sqlite::RowResult> for RowResult {
     fn from(row: spin_sdk::sqlite::RowResult) -> RowResult {
         RowResult {
-            values: row
-                .values
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            values: row.values.into_iter().map(From::from).collect(),
         }
     }
 }
@@ -79,7 +113,6 @@ impl From<spin_sdk::sqlite::Value> for Value {
         }
     }
 }
-
 
 impl From<spin_sdk::sqlite::Error> for Error {
     fn from(e: spin_sdk::sqlite::Error) -> Self {

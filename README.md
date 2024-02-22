@@ -4,9 +4,18 @@ This repo is an example of how to compose a proxy component to intercept sqlite 
 
 ## Repo structure
 
-The `sqlite-proxy/` directory contains a proxy to intercept executions against a sqlite database.
+The `proxy/` directory contains a proxy to intercept executions against a sqlite database, and obfuscate e-mail addresses returned from the database. The proxy is written in Rust.
 
-The `example/` directory contains a Spin application which consists of one http handler which returns data from a sqlite database in the body. In the `spin.toml` file, the component build instructions point to a `build.sh` script which builds the example component and composes it with the sqlite-middleware component.
+The `example/` directory contains a Spin application which consists of four http handlers which returns data from a sqlite database in the body.
+
+- no-proxy-rust
+  - A component written in Rust, returning unfiltered data from the database.
+- proxy-rust
+  - A component composition of the no-proxy-rust component and the proxy. This component returns data with obfuscated e-mails.
+- no-proxy-python
+  - A component written in Python, returning unfiltered data from the database.
+- proxy-python
+  - A component composition of the no-proxy-python component and the proxy. This component returns data with obfuscated e-mails.
 
 ## Demo instructions
 
@@ -18,42 +27,41 @@ The `example/` directory contains a Spin application which consists of one http 
 cargo install --git https://github.com/bytecodealliance/cargo-component cargo-component
 ```
 
-- Install latest [Spin](https://github.com/fermyon/spin)
+- Install [wasm-tools](https://github.com/bytecodealliance/wasm-tools)
+
+```bash
+cargo install wasm-tools
+```
+
+- Install [Spin](https://developer.fermyon.com/spin/v2/install)
 
 ### Build the components and run the demo
 
 ```bash
+cd example
 
-# Build the Spin application and sqlite-proxy. Spin build runs the `example/build.sh` script.
+# Build the Spin application and proxy. Spin build runs all the build commands to build the four components. Check out the commands in the `spin.toml` file.
 spin build
 
 # Build and run the example
 spin up --sqlite @db.sql
 
-# Curl http://127.0.0.1:3000/login in a browser
-curl -i http://localhost:3000
-```
-
-Try changing the Spin app to run without the sqlite-proxy, by changing the wasm file used in the `spin.toml` file:
-
-1. Uncomment `source = "target/wasm32-wasi/release/example.wasm"`
-2. Comment out `#source = "service.wasm"`
-
-```toml
-[component.example]
-#source = "service.wasm"
-source = "target/wasm32-wasi/release/example.wasm"
+# Curl the four endpoints in a browser
+curl -i http://127.0.0.1:3000/no-proxy-rust
+curl -i http://127.0.0.1:3000/proxy-rust
+curl -i http://127.0.0.1:3000/no-proxy-python
+curl -i http://127.0.0.1:3000/proxy-python
 ```
 
 Now deploy your application.
 
 ```sh
 $ spin deploy
-Uploading example version 0.1.0 to Fermyon Cloud...
+Uploading sqlite_proxy_example version 0.1.0 to Fermyon Cloud...
 Deploying...
 Waiting for application to become ready............. ready
 Available Routes:
-  example: https://example-12345.fermyon.app (wildcard)
+  example: https://sqlite_proxy_example-12345.fermyon.app (wildcard)
 ```
 
 In the example deploy output above, the app now exists at endpoint `https://example-12345.fermyon.app`.

@@ -1,7 +1,7 @@
 spin_manifest_version = 2
 
 [application]
-name = "example"
+name = "sqlite_proxy_example"
 version = "0.1.0"
 description = "A simple HTTP handler"
 
